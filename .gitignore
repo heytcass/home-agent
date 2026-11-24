@@ -1,0 +1,8 @@
+__pycache__/
+.pytest_cache/
+result
+*.db
+*.db-*
+.direnv/
+inventory.md
+memory/

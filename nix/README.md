@@ -24,7 +24,7 @@ under [Not tested on a live system](#not-tested-on-a-live-system).
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     home-staff = {
-      url = "github:OWNER/home-staff";
+      url = "github:heytcass/home-agent";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };

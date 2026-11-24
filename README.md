@@ -126,7 +126,7 @@ here and arrives on your machines with `nix flake update`.
 
 ```nix
 # flake.nix of your fleet
-inputs.home-staff.url = "github:OWNER/home-agent";
+inputs.home-staff.url = "github:heytcass/home-agent";
 inputs.home-staff.inputs.nixpkgs.follows = "nixpkgs";
 ```
 

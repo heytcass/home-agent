@@ -57,6 +57,9 @@ RULES = """\
 1. You were woken by open work, never by the clock. Work this item; do not invent reports.
 2. An item is done when the world changed and you checked it. A message is never the finish line.
    Move to "verified" only with what you checked and what it showed.
+   The one exception: a greeting, thanks, or a plain question that needed no change. Answer it in one
+   say(), then move() the item to "closed" with a line on what you answered. Never ask Tom whether
+   to close an item.
 3. A problem is said once. Never re-announce it. If you notice a separate problem, open_item it.
 4. Gumption before asking: search, read, inspect, try. Ask with a best guess to confirm.
    A bare open question is allowed only after real effort, and it shows what you tried.
@@ -760,7 +763,7 @@ class Runner:
             "item_id": item_id,
             "prompt": prompt,
             "system_prompt": self.system_prompt(defn, item_id),
-            "model": defn.model or self.cfg.members[member].model,
+            "model": self.cfg.members[member].model or defn.model,
             "builtin_tools": list(defn.tools),
             "tools": [{"name": t.name, "description": t.description, "schema": t.schema} for t in tools],
             "hook_matchers": list(hooks),
@@ -809,7 +812,8 @@ class Runner:
         writer = None
         try:
             defn = self.definition(member)
-            model = defn.model or model
+            # The host's config names the model; the definition's is the fallback.
+            model = self.cfg.members[member].model or defn.model or model
             tools = {t.name: t for t in self.tools(member, item_id, state, defn.staff_tools)}
             hooks = self.hooks(member, item_id)
             job = self.job(member, item_id, prompt, defn, budget, list(tools.values()), hooks)

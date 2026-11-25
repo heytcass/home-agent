@@ -269,3 +269,25 @@ def test_last_staff_message_skips_tom_alerts_and_the_desks_own(ledger, clock):
     assert ledger.last_staff_message() == "$p"
     ledger.record_message("$c", item.id, "@fleet:x", "chat")  # same second: the later row wins
     assert ledger.last_staff_message() == "$c"
+
+
+def test_an_answered_item_closes_without_tom(ledger):
+    item, _ = ledger.open("Hello world", "tom", TOM)
+    with pytest.raises(RuleBroken):
+        ledger.move(item.id, "closed", "chief", "said hello")  # nothing was said in the room yet
+    ledger.record_message("$t", item.id, TOM, "chat")
+    with pytest.raises(RuleBroken):
+        ledger.move(item.id, "closed", "chief", "said hello")  # Tom spoke last
+    ledger.record_message("$c", item.id, "chief", "chat")
+    with pytest.raises(RuleBroken):
+        ledger.move(item.id, "closed", "chief")  # must say what was answered
+    assert ledger.move(item.id, "closed", "chief", "said hello back").state == "closed"
+
+
+def test_work_still_closes_only_after_a_check(ledger):
+    item, _ = ledger.open("restart caddy", "tom", TOM)
+    ledger.record_message("$c", item.id, "fleet", "chat")
+    ledger.move(item.id, "investigated", "fleet")
+    ledger.move(item.id, "done", "fleet")
+    with pytest.raises(RuleBroken):
+        ledger.move(item.id, "closed", "fleet", "it is fine")

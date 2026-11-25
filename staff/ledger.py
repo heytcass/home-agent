@@ -23,8 +23,8 @@ from pathlib import Path
 
 # state -> states it may move to
 LIFECYCLE: dict[str, set[str]] = {
-    "noticed": {"investigated", "dropped"},
-    "investigated": {"pitched", "proposed", "done", "waiting", "dropped", "shelved"},
+    "noticed": {"investigated", "dropped", "closed"},  # closed: answered, nothing to change
+    "investigated": {"pitched", "proposed", "done", "waiting", "dropped", "shelved", "closed"},
     "waiting": {"investigated", "shelved", "dropped"},  # a question is out to Tom
     "pitched": {"approved", "dropped", "shelved", "investigated"},
     "proposed": {"approved", "dropped", "shelved", "investigated"},
@@ -291,6 +291,15 @@ class Ledger:
             # yes is Tom's reaction on that message (approve_scope). No move stands in for either.
             raise RuleBroken("this item has a proposal; propose again with the propose tool, "
                              "and only Tom's yes on that message approves it")
+        if to == "closed" and item.state in ("noticed", "investigated") and not toms_call:
+            # Small talk and plain questions end with an answer. Work never does:
+            # that still goes done -> verified -> closed.
+            if self.last_sender(item_id) in (None, self.tom, "alerts"):
+                raise RuleBroken("answer in the room first; an item closes here only after your answer")
+            if self.scope(item_id) is not None:
+                raise RuleBroken("this item has a proposal, so it cannot be closed as answered")
+            if not detail.strip():
+                raise RuleBroken("say in one line what you answered")
         if to == "verified" and not detail.strip():
             raise RuleBroken("say what was checked and what the check showed")
         if to == "dropped" and item.origin == "tom" and actor != self.tom:

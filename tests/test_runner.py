@@ -1066,3 +1066,11 @@ async def test_one_run_opens_at_most_three_items(env):  # review J
     assert len(ledger.open_items()) == 4
     fresh = tool(runner, "fleet", item(ledger), "open_item", {"handoff": None})  # the cap is per run
     assert not (await fresh({"title": "problem 3", "body": ""})).get("is_error")
+
+
+async def test_the_hosts_config_names_the_model(env):
+    cfg, ledger, _ = env
+    cfg.members["fleet"].model = "claude-haiku-5-5"  # the definition file says sonnet
+    runner, q = make(env)
+    await runner.run("fleet", item(ledger), "go")
+    assert q.calls[0][1].model == "claude-haiku-5-5"

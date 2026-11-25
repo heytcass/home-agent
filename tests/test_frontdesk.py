@@ -274,14 +274,16 @@ async def test_handoff_ping_pong_stops(desk):  # finding 5
     assert "handoff held" in [r["what"] for r in desk.ledger.history(item.id)]
 
 
-async def answered(desk, hour=12):
-    """Tom asks; fleet answers in the room and leaves the item 'investigated'."""
+async def answered(desk, hour=12, moved=True):
+    """Tom asks; fleet answers in the room and leaves the item 'investigated'
+    (or, with moved=False, forgets to move it at all)."""
     at(desk, hour)
 
     async def run(member, item_id, prompt):
         desk.runner.runs.append((member, item_id, prompt))
         desk.answer = await desk.room.say(member, item_id, "chat", "answer")
-        desk.ledger.move(item_id, "investigated", member)
+        if moved:
+            desk.ledger.move(item_id, "investigated", member)
         return Result()
 
     desk.runner.run = run
@@ -290,14 +292,16 @@ async def answered(desk, hour=12):
     return desk.ledger.open_items()[0]
 
 
-async def test_answered_item_is_not_woken_then_shelved(desk):  # finding 6a
-    item = await answered(desk)
+@pytest.mark.parametrize("moved", [True, False])
+async def test_answered_item_is_not_woken_then_shelved(desk, moved):  # finding 6a
+    item = await answered(desk, moved=moved)
+    kept = item.state
     base = desk.clock.t
     for hours in (1, 5, 24, 30, 48, 70):
         desk.clock.t = base + hours * 3600
         await desk.tend()
         await drain(desk)
-    assert len(desk.runner.runs) == 1 and desk.ledger.get(item.id).state == "investigated"
+    assert len(desk.runner.runs) == 1 and desk.ledger.get(item.id).state == kept
     desk.clock.t = base + 73 * 3600
     await desk.tend()
     await drain(desk)

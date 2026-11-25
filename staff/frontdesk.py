@@ -145,7 +145,7 @@ class FrontDesk:
             return
         if not awaiting and (yes or THANKS.match(text)):
             # A thumbs-up on an answer means "that's all": close it and wake nobody.
-            if item.state in ("investigated", "done", "verified") and self._member_spoke_last(item):
+            if item.state in ("noticed", "investigated", "done", "verified") and self._member_spoke_last(item):
                 self.ledger.move(item.id, "closed", sender, "Tom closed it")
             return
         if awaiting and YES_WORDS.match(text):
@@ -326,8 +326,9 @@ class FrontDesk:
             self.wake(item.id, "Tom's yes on this item is more than a day old and the work was not finished, "
                                "so it no longer counts. If it still needs doing, propose it again and say what stopped you.")
         elif item.state in WORK_OWED and now - item.updated_ts > STALE_AFTER:
-            if item.state == "investigated" and self._member_spoke_last(item):
+            if item.state in ("noticed", "investigated") and self._member_spoke_last(item):
                 # The owner answered and it is Tom's turn. Waking the owner again would only repeat it.
+                # "noticed" counts too: a member that answered and forgot to move the item still answered.
                 if now - item.updated_ts > ANSWERED_KEPT:
                     self.ledger.move(item.id, "shelved", "frontdesk", "answered, and nothing more came")
             elif self._noted(item.id, "held", 86400) and self._last(item.id, "held") >= self._day_start(now):

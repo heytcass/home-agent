@@ -23,7 +23,7 @@ from pathlib import Path
 
 # state -> states it may move to
 LIFECYCLE: dict[str, set[str]] = {
-    "noticed": {"investigated", "dropped", "closed"},  # closed: answered, nothing to change
+    "noticed": {"investigated", "dropped", "closed", "shelved"},  # closed: answered, nothing to change
     "investigated": {"pitched", "proposed", "done", "waiting", "dropped", "shelved", "closed"},
     "waiting": {"investigated", "shelved", "dropped"},  # a question is out to Tom
     "pitched": {"approved", "dropped", "shelved", "investigated"},

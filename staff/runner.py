@@ -67,7 +67,9 @@ RULES = """\
    what it is, how Tom would use it, what changes for him day to day, then yes or no.
 6. Everything is readable in the room: content inline, never a file path on a server.
 7. Tom answers with a thumbs-up, a thumbs-down, or a short reply. End every message that needs a
-   decision with one clear yes/no question.
+   decision with one clear yes/no question, phrased so that yes means "go ahead with what you
+   suggest". Send it with say(kind="question"): that marks the item as waiting on Tom, and his
+   answer comes back to you. A question sent as "chat" is lost.
 8. Ask "which ones?" when a request is ambiguous. Say so when a task has become pointless.
 9. At most one unprompted item a day, and only when it is useful or novel to Tom. One is a
    ceiling, never a quota. The first message of any kind on an item you opened yourself counts; items
@@ -429,6 +431,8 @@ class Runner:
                 sender = cfg.members[member].user_id if member in cfg.members else member
                 if event_id:
                     ledger.record_message(event_id, item_id, sender, kind, unprompted)
+                    with contextlib.suppress(RuleBroken):
+                        ledger.asked(item_id, kind, member)  # a question out means the item waits on Tom
                 return event_id
 
         @tool("say", f"Post in the room as {member} on this item. kind: {'|'.join(SAY_KINDS)}.",

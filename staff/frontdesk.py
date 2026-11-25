@@ -61,7 +61,7 @@ class FrontDesk:
         """Tom wrote in the room. Claim it at once, then work out what it is about."""
         await self._quietly(self.room.react("chief", msg.event_id, "👀"))
         item = self.ledger.item_for_event(msg.reply_to) if msg.reply_to else None
-        owner, body, look_up, target = None, msg.text, item is None, msg.reply_to
+        owner, body, look_up, target, stray = None, msg.text, item is None, msg.reply_to, False
         if item is not None and item.alert_key == DESK_KEY:
             item, look_up = None, True  # a reply to a front desk notice is just a message
         elif item is not None and not item.is_open and item.state != "shelved":
@@ -79,7 +79,12 @@ class FrontDesk:
                 ))
                 return
             item, look_up = (waiting[0], False) if waiting else (None, True)
-            if item is not None and YES_WORDS.match(msg.text):
+            if item is None:
+                # Nothing is marked as waiting, but a member spoke last in the room: he is
+                # answering that. It reaches the member as a reply and approves nothing.
+                item = self.ledger.last_spoken_item()
+                look_up, stray = item is None, item is not None
+            if item is not None and not stray and YES_WORDS.match(msg.text):
                 # The one thing waiting on him, and no thread hunting: his yes is for its ask,
                 # but only if that ask is the last thing a member said. Anything said after it
                 # could be what he is answering, and a guess must never approve.
@@ -99,7 +104,11 @@ class FrontDesk:
             self.wake(item.id, f"Tom wrote this in the room:\n\n{msg.text}")
             return
         # Answer first: whether a member spoke last is judged before Tom's own message is recorded.
-        await self._answer(item, msg.text, msg.sender, target)
+        if stray and YES_WORDS.match(msg.text) and item.state != "approved":
+            self.wake(item.id, f"Tom replied to what you last said on this item:\n\n{msg.text}\n\n"
+                               "It answers your message. It approves no change.")
+        else:
+            await self._answer(item, msg.text, msg.sender, target)
         self.ledger.record_message(msg.event_id, item.id, msg.sender, "chat")
 
     async def on_reaction(self, r) -> None:
@@ -155,6 +164,13 @@ class FrontDesk:
             else:
                 self._back_to_work(item, sender)
                 self.wake(item.id, "Tom confirmed your best guess. Carry on.")
+        elif awaiting and NO_WORDS.match(text) and item.state == "waiting":
+            # A no to a question is an answer, and only the member knows what was asked:
+            # "should I drop this?" and "should I go on?" take opposite meanings from it.
+            self._back_to_work(item, sender)
+            self.wake(item.id, "Tom answered no to the question you asked. Work out what a no means for "
+                               "that question. If it means stop, tell him in one line that you stopped, then "
+                               "end the item with move(): dropped if you may, otherwise closed.")
         elif awaiting and NO_WORDS.match(text):
             self.ledger.move(item.id, "dropped", sender, "Tom said no")
         else:

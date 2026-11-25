@@ -735,3 +735,50 @@ async def test_a_bare_yes_counts_only_when_the_ask_was_said_last(desk):  # revie
     await desk.on_message(msg("ok", event_id="$in6"))  # the proposal is the last thing said: no thread hunting
     assert desk.ledger.get(item.id).state == "approved"
     assert desk.ledger.scope(item.id).approved_ts == desk.clock.t
+
+
+async def asked(desk, kind="question"):
+    """Tom asked for something and the chief answered with a question of the given kind."""
+    await desk.on_message(msg("look into the kiosk updates"))
+    await drain(desk)
+    item = desk.ledger.open_items()[0]
+    await desk.room.say("chief", item.id, kind, "I can't reach it. Should I drop this? Yes or no.")
+    desk.ledger.asked(item.id, kind, "chief")
+    return item
+
+
+@pytest.mark.parametrize("how", ["bare", "reply", "thumbs_down"])
+async def test_a_no_to_a_question_goes_back_to_the_member(desk, how):
+    item = await asked(desk)
+    assert desk.ledger.get(item.id).state == "waiting"
+    ask, runs = desk.ledger.last_ask(item.id), len(desk.runner.runs)
+    if how == "thumbs_down":
+        await desk.on_reaction(SimpleNamespace(event_id="$r1", sender=TOM, target=ask, key="👎"))
+    else:
+        await desk.on_message(msg("no", event_id="$in2", reply_to=ask if how == "reply" else None))
+    assert desk.ledger.get(item.id).state == "investigated"  # not dropped: he may have meant "keep it"
+    await drain(desk)
+    assert len(desk.ledger.open_items()) == 1 and len(desk.runner.runs) == runs + 1
+    assert "answered no to the question you asked" in desk.runner.runs[-1][2]
+
+
+@pytest.mark.parametrize("word", ["no", "yes"])
+async def test_a_stray_yes_or_no_lands_on_what_the_staff_last_said(desk, word):
+    async def triage(text):
+        raise AssertionError("a bare yes or no is never a new request while a member spoke last")
+
+    item = await asked(desk, kind="chat")  # the member asked without marking it: nothing is waiting
+    desk.triage = triage
+    assert desk.ledger.awaiting_tom() == []
+    await desk.on_message(msg(word, event_id="$in2"))
+    await drain(desk)
+    after = desk.ledger.get(item.id)
+    assert len(desk.ledger.open_items()) == 1 and after.state == item.state  # no new item, nothing approved
+    assert desk.runner.runs[-1][1] == item.id and word in desk.runner.runs[-1][2]
+
+
+async def test_a_stray_no_after_tom_spoke_last_is_a_new_message(desk):
+    item = await asked(desk, kind="chat")
+    await desk.on_message(msg("also check the disks", event_id="$in2"))
+    await desk.on_message(msg("no", event_id="$in3"))
+    assert len(desk.ledger.open_items()) == 3 and desk.ledger.get(item.id).state == item.state

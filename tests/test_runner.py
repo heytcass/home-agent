@@ -1074,3 +1074,15 @@ async def test_the_hosts_config_names_the_model(env):
     runner, q = make(env)
     await runner.run("fleet", item(ledger), "go")
     assert q.calls[0][1].model == "claude-haiku-5-5"
+
+
+@pytest.mark.parametrize("kind, state", [("question", "waiting"), ("pitch", "pitched"), ("chat", "noticed")])
+async def test_asking_marks_the_item_as_waiting_on_tom(env, kind, state):
+    _, ledger, _ = env
+    runner, _ = make(env, room=Room())
+    iid = item(ledger)
+    out = await tool(runner, "fleet", iid, "say")({"kind": kind, "text": "Should I go on? Yes or no."})
+    assert not out.get("is_error") and ledger.get(iid).state == state
+    if state != "noticed":  # the member saying so again is not an error
+        again = await tool(runner, "fleet", iid, "move")({"state": state, "detail": ""})
+        assert not again.get("is_error")

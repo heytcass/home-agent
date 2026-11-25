@@ -23,7 +23,7 @@ from pathlib import Path
 
 # state -> states it may move to
 LIFECYCLE: dict[str, set[str]] = {
-    "noticed": {"investigated", "dropped", "closed", "shelved"},  # closed: answered, nothing to change
+    "noticed": {"investigated", "waiting", "dropped", "closed", "shelved"},  # closed: answered, nothing to change
     "investigated": {"pitched", "proposed", "done", "waiting", "dropped", "shelved", "closed"},
     "waiting": {"investigated", "shelved", "dropped"},  # a question is out to Tom
     "pitched": {"approved", "dropped", "shelved", "investigated"},
@@ -280,6 +280,8 @@ class Ledger:
     def move(self, item_id: int, to: str, actor: str, detail: str = "") -> Item:
         """Move an item along the lifecycle. Raises RuleBroken on a bad move."""
         item = self.get(item_id)
+        if to == item.state and to in AWAITING_TOM:
+            return item  # asking already put it here (asked); saying so again changes nothing
         toms_call = actor == self.tom and to in ("closed", "dropped") and item.state not in ("closed", "dropped")
         if to not in LIFECYCLE.get(item.state, set()) and not toms_call:
             raise RuleBroken(f"item {item_id} is '{item.state}' and cannot become '{to}'")
@@ -310,6 +312,17 @@ class Ledger:
             self._set(item_id, state=to)
         self.note(item_id, actor, f"-> {to}", detail)
         return self.get(item_id)
+
+    def asked(self, item_id: int, kind: str, actor: str) -> None:
+        """A member put a question or a pitch to Tom in the room, so the item now
+        waits on him. Asking and waiting are one step: a member that asked and
+        forgot to move the item would leave Tom's answer with nothing to land on."""
+        to = {"question": "waiting", "pitch": "pitched"}.get(kind)
+        if to is None or self.get(item_id).state not in ("noticed", "investigated"):
+            return
+        if to == "pitched" and self.get(item_id).state == "noticed":
+            self.move(item_id, "investigated", actor, "pitched in the room")
+        self.move(item_id, to, actor, "asked in the room")
 
     def _set(self, item_id: int, **fields) -> None:
         fields["updated_ts"] = self.now()
@@ -458,6 +471,21 @@ class Ledger:
             (self.tom, *sorted(EXEMPT_KINDS)),
         ).fetchone()
         return row[0] if row else None
+
+    def last_spoken_item(self) -> Item | None:
+        """The open item a member spoke on, if that is the newest thing said in the
+        room. None when Tom or an alert spoke last, or when that item is finished.
+        The front desk's own reminders and notices do not count."""
+        marks = ",".join("?" * len(EXEMPT_KINDS - {"intake"}))
+        row = self.db.execute(
+            f"SELECT item_id, sender FROM messages WHERE kind NOT IN ({marks})"
+            " ORDER BY ts DESC, rowid DESC LIMIT 1",
+            tuple(sorted(EXEMPT_KINDS - {"intake"})),
+        ).fetchone()
+        if row is None or row[1] in (self.tom, "alerts"):
+            return None
+        item = self.get(row[0])
+        return item if item.is_open else None
 
     def last_sender(self, item_id: int) -> str | None:
         """Who wrote the newest room message on this item."""

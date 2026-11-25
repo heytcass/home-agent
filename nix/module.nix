@@ -769,6 +769,8 @@ in
       requires = [ "home-staff-relay-tokens.service" ];
       wants = [ "home-staff-relay.service" ];
       after = [ "home-staff-relay-tokens.service" "home-staff-relay.service" ];
+      # A finished or failed run leaves no unit behind.
+      unitConfig.CollectMode = "inactive-or-failed";
 
       # The package wrapper adds claude-code, git and openssh. The rest is
       # what the Bash tool needs to look at things; nothing here can change
@@ -791,8 +793,6 @@ in
         StateDirectory = map rel [ (memberDir name) "${memberDir name}/work" "${memberDir name}/claude" ];
         StateDirectoryMode = "0700";
         WorkingDirectory = "${memberDir name}/work";
-        # A finished or failed run leaves no unit behind.
-        CollectMode = "inactive-or-failed";
         InaccessiblePaths = hide (othersOfMember name);
       };
     }) cfg.members;

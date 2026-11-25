@@ -720,6 +720,8 @@ async def test_status(tmp_path):
     reply = await ask(door, op="status", host="spa")
     assert reply["ok"] and reply["rev"] == REV and reply["revert_pending"] is True
     assert reply["confirmed_rev"] == REV2 and reply["status"]["system_running"] == "running"
+    fake.host.update(active_rev="", system_rev=REV2)  # deployed by hand: the host's own record answers
+    assert (await ask(door, op="status", host="spa"))["rev"] == REV2
     fake.reachable = False
     reply = await ask(door, op="status", host="spa")
     assert not reply["ok"] and "status" in reply["error"]
@@ -1084,15 +1086,22 @@ def test_root_script_status_format(root_script, tmp_path):
     rc, out, _ = root_script("status")
     assert rc == 0
     assert out.splitlines() == [
-        f"current_system={tmp_path}/store/{OLD}", "rev=", "active_rev=", "switch=none",
+        f"current_system={tmp_path}/store/{OLD}", "rev=", "active_rev=", "system_rev=", "switch=none",
         "revert_pending=no", "system_running=running", "failed_units=0", "log=", "failed_list="]
+    # A host deployed by hand still says what it was built from; anything that is not a revision is dropped.
+    version = tmp_path / "store" / OLD / "sw/bin/nixos-version"
+    version.parent.mkdir(parents=True)
+    for says, shown in ((REV, REV), ("dirty", "")):
+        version.write_text(f"#!/bin/sh\necho {says}\n")
+        version.chmod(0o755)
+        assert root_script("status")[1].splitlines()[3] == f"system_rev={shown}"
     (tmp_path / "failed").write_text("b.service loaded failed failed B\na.service loaded failed failed A\n")
     lines = root_script("status")[1].splitlines()
-    assert len(lines) == 9 and lines[6] == "failed_units=2" and lines[8] == "failed_list=a.service b.service"
+    assert len(lines) == 10 and lines[7] == "failed_units=2" and lines[9] == "failed_list=a.service b.service"
     # The list is capped at 50 names; the count is not, so the door can tell.
     (tmp_path / "failed").write_text("".join(f"u{i:02}.service loaded failed failed\n" for i in range(60)))
     lines = root_script("status")[1].splitlines()
-    assert lines[6] == "failed_units=60" and lines[8].split("=")[1].split() == [f"u{i:02}.service" for i in range(50)]
+    assert lines[7] == "failed_units=60" and lines[9].split("=")[1].split() == [f"u{i:02}.service" for i in range(50)]
 
 
 @needs_bash

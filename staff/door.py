@@ -527,7 +527,9 @@ class Door:
     async def status(self, req: dict) -> dict:
         host = self._host(req)
         st = await self._status(host)
-        return {"host": host, "rev": st.get("active_rev") or None,
+        # active_rev is known only when the door made the last switch. After a deploy by
+        # hand, the host's own record of what it was built from is the answer.
+        return {"host": host, "rev": st.get("active_rev") or st.get("system_rev") or None,
                 "revert_pending": st.get("revert_pending") == "yes",
                 "confirmed_rev": self.state["hosts"].get(host), "status": st}
 

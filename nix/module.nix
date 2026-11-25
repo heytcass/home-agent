@@ -555,7 +555,12 @@ in
     # block from swallowing options other modules add to ssh_config.
     programs.ssh.extraConfig =
       let withKey = lib.filterAttrs (_: m: m.sshKeyFile != null) cfg.members; in
-      mkAfter (lib.concatStrings (lib.mapAttrsToList (name: m: ''
+      mkAfter (lib.concatStrings (lib.mapAttrsToList (name: m:
+        # `ssh suzuka` works by the short name, so no address has to be in a prompt.
+        lib.concatStrings (lib.mapAttrsToList (host: h: ''
+          Match localuser ${memberUser name} originalhost ${host}
+            HostName ${h.address}
+        '') cfg.door.hosts) + ''
         Match localuser ${memberUser name}
           User staff-read
           IdentityFile ${m.sshKeyFile}

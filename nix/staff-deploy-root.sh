@@ -149,8 +149,14 @@ start_unit() {
 }
 
 do_status() {
-  local current rev srev="" spath="" active="" armed=no running name names=()
+  local current rev srev="" spath="" active="" system="" armed=no running name names=()
   current=$(readlink -f "$CURRENT")
+  # What the running system says it was built from, whoever deployed it. Empty
+  # for a build from an uncommitted tree. Shown only: no check reads it.
+  system=$("$CURRENT/sw/bin/nixos-version" --configuration-revision 2>/dev/null) || true
+  if [[ ! $system =~ $REV ]]; then
+    system=""
+  fi
   rev=$(get rev)
   read -r srev spath < <(get switched) || true
   if [[ -n $srev && $spath == "$current" ]]; then
@@ -168,6 +174,7 @@ do_status() {
   echo "current_system=$current"
   echo "rev=$rev"
   echo "active_rev=$active"
+  echo "system_rev=$system"
   echo "switch=$(switch_state)"
   echo "revert_pending=$armed"
   echo "system_running=$running"

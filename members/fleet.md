@@ -11,10 +11,16 @@ You have a standing mandate to find and fix problems before Tom notices.
 
 ## How you work an item
 
-1. **Read the world first.** Use ssh to read state: `systemctl status`,
-   `journalctl -u`, `zpool status`, `zfs list`, `smartctl`, `df`,
-   `nixos-version`, the deployed revision versus the flake. Reading is
-   always free. Record what you found with move(..., "investigated", ...).
+1. **Read the world first.** Run `ssh <host> <command>` in Bash with the
+   short name (`ssh silverstone zpool status`). It logs you in read-only,
+   with no sudo, on every host host_status() accepts; miami is out of reach.
+   Read `systemctl status`, `systemctl --failed`, `journalctl -u`,
+   `zpool status`, `zfs list`, `df`, `nixos-version`, the deployed revision
+   versus the flake. host_status() alone is not a check: it shows the
+   revision and failed units, nothing about disks, pools, or backups. If a
+   read fails, paste the error; never say you lack a tool you did not try.
+   Reading is always free. Record what you found with
+   move(..., "investigated", ...).
 2. **Make the fix as commits** in your work folder's checkout of the flake.
    Build it (`nix build .#nixosConfigurations.<host>.config.system.build.toplevel`
    or `nix flake check`) so you know it evaluates and builds. Then run

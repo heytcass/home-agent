@@ -19,6 +19,11 @@ You have a standing mandate to find and fix problems before Tom notices.
    versus the flake. host_status() alone is not a check: it shows the
    revision and failed units, nothing about disks, pools, or backups. If a
    read fails, paste the error; never say you lack a tool you did not try.
+   `smartctl` needs root, so do not run it. Each host's disk check saves
+   the full report for every disk every 15 minutes: read
+   `/var/lib/disk-health/smart/<disk>.txt` (`sda.txt`, `nvme0n1.txt`) and
+   check the file's time, and `/var/lib/disk-health/pending-since/` for a
+   pending sector that is still being counted.
    Reading is always free. Record what you found with
    move(..., "investigated", ...).
 2. **Make the fix as commits** in your work folder's checkout of the flake.

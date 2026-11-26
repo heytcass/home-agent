@@ -487,6 +487,17 @@ class Ledger:
         item = self.get(row[0])
         return item if item.is_open else None
 
+    def last_item_of(self, member: str) -> Item | None:
+        """The item of the newest thing this member said in the room, open or finished.
+        How a message that names a member finds what "it" is."""
+        marks = ",".join("?" * len(EXEMPT_KINDS))
+        row = self.db.execute(
+            f"SELECT item_id FROM messages WHERE sender=? AND kind NOT IN ({marks})"
+            " ORDER BY ts DESC, rowid DESC LIMIT 1",
+            (member, *sorted(EXEMPT_KINDS)),
+        ).fetchone()
+        return self.get(row[0]) if row else None
+
     def last_sender(self, item_id: int) -> str | None:
         """Who wrote the newest room message on this item."""
         row = self.db.execute(

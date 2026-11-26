@@ -170,3 +170,21 @@ def test_text_cannot_bring_its_own_code_marks():  # review K
     assert markdown_to_html("a \x000\x00 b") == markdown_to_html("a 0 b")
     html = markdown_to_html("\x005\x00 and `real` code")
     assert "<code>real</code>" in html and "\x00" not in html
+
+
+@pytest.mark.parametrize("body", ["fleetgo ahead and pitch it.", "fleet go ahead and pitch it.", "Fleetgo ahead and pitch it."])
+def test_a_mention_names_the_member_and_is_set_apart(cfg, body):
+    pill = '<a href="https://matrix.to/#/@fleet:example.org">fleet</a>go ahead and pitch it.'
+    got = classify(cfg, msg(TOM, body, formatted_body=pill, **{"m.mentions": {"user_ids": ["@fleet:example.org"]}}))
+    assert got.mentions == ("fleet",) and got.text.lower() == "fleet go ahead and pitch it."
+
+
+def test_a_pill_alone_counts_as_a_mention(cfg):
+    pill = '<a href="https://matrix.to/#/%40fleet%3Aexample.org">Fleet Bot</a>check spa'
+    got = classify(cfg, msg(TOM, "Fleet Botcheck spa", formatted_body=pill))
+    assert got.mentions == ("fleet",) and got.text == "Fleet Bot check spa"
+
+
+def test_no_mention_leaves_the_text_alone(cfg):
+    got = classify(cfg, msg(TOM, "the fleeting chiefdom", **{"m.mentions": {"user_ids": ["@nobody:example.org"]}}))
+    assert got.mentions == () and got.text == "the fleeting chiefdom"

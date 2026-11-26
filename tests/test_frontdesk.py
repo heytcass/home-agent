@@ -782,3 +782,50 @@ async def test_a_stray_no_after_tom_spoke_last_is_a_new_message(desk):
     await desk.on_message(msg("also check the disks", event_id="$in2"))
     await desk.on_message(msg("no", event_id="$in3"))
     assert len(desk.ledger.open_items()) == 3 and desk.ledger.get(item.id).state == item.state
+
+
+async def fleet_reported(desk):
+    """Tom asked Fleet for a check and Fleet reported back in the room."""
+    await desk.on_message(msg("check all four hosts"))
+    await drain(desk)
+    item = desk.ledger.open_items()[0]
+    desk.ledger.assign(item.id, "fleet", "frontdesk")
+    await desk.room.say("fleet", item.id, "chat", "Nothing is broken. If you want monza copied off-box, I can pitch it.")
+    return item
+
+
+def no_triage(desk):
+    async def triage(text):
+        raise AssertionError("a message that names one member is never routed by a model")
+    desk.triage = triage
+
+
+async def test_naming_a_member_lands_on_what_it_last_said(desk):
+    item = await fleet_reported(desk)
+    await desk.room.say("chief", desk.ledger.desk_item().id, "system", "a notice in between")
+    no_triage(desk)
+    await desk.on_message(SimpleNamespace(event_id="$in2", sender=TOM, text="fleet go ahead and pitch it.",
+                                          reply_to=None, mentions=("fleet",)))
+    await drain(desk)
+    assert len(desk.ledger.open_items()) == 1 and desk.ledger.get(item.id).state == item.state
+    assert desk.runner.runs[-1][:2] == ("fleet", item.id) and "pitch it" in desk.runner.runs[-1][2]
+
+
+async def test_naming_a_member_after_its_item_finished_is_a_follow_up_for_it(desk):
+    item = await fleet_reported(desk)
+    desk.ledger.move(item.id, "closed", TOM)
+    no_triage(desk)
+    await desk.on_message(SimpleNamespace(event_id="$in2", sender=TOM, text="fleet go ahead and pitch it.",
+                                          reply_to=None, mentions=("fleet",)))
+    await drain(desk)
+    (new,) = desk.ledger.open_items()
+    assert new.id != item.id and new.owner == "fleet" and f"Follow-up to item #{item.id}" in new.body
+
+
+async def test_naming_a_member_that_never_spoke_opens_an_item_for_it(desk):
+    no_triage(desk)
+    await desk.on_message(SimpleNamespace(event_id="$in1", sender=TOM, text="fleet check spa", reply_to=None,
+                                          mentions=("fleet",)))
+    await drain(desk)
+    (new,) = desk.ledger.open_items()
+    assert new.owner == "fleet" and desk.runner.runs[-1][0] == "fleet"

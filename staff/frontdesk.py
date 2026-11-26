@@ -68,6 +68,17 @@ class FrontDesk:
             # The item he replied on is finished. His words are a new request about it.
             body = f"Follow-up to item #{item.id} ({item.title}), which is {item.state}:\n\n{msg.text}"
             owner, item = item.owner, None
+        named = getattr(msg, "mentions", ())
+        if look_up and item is None and owner is None and len(named) == 1:
+            # He named one member and replied to nothing: he is talking to that member about
+            # the last thing it said. No model guesses the owner, and nothing is approved here.
+            owner, look_up = named[0], False
+            last = self.ledger.last_item_of(owner)
+            if last is not None and last.alert_key != DESK_KEY:
+                if last.is_open or last.state == "shelved":
+                    item = last
+                else:
+                    body = f"Follow-up to item #{last.id} ({last.title}), which is {last.state}:\n\n{msg.text}"
         if look_up and (YES_WORDS.match(msg.text) or NO_WORDS.match(msg.text)):
             # A bare yes or no that points at nothing. A model must never pick what it approves.
             waiting = self.ledger.awaiting_tom()

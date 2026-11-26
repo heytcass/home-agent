@@ -13,6 +13,7 @@ import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import unquote
 
 from nio import AsyncClient, Event, SyncResponse
 
@@ -31,6 +32,7 @@ class Incoming:
     text: str
     reply_to: str | None
     ts: float
+    mentions: tuple[str, ...] = ()  # members Tom addressed by name, in config order
 
 
 @dataclass
@@ -57,6 +59,29 @@ class Alert:
         if not (self.host and self.source and self.key):
             return None
         return f"{self.host}/{self.source}/{self.key}"
+
+
+_PILL = re.compile(r'<a href="https://matrix\.to/#/((?:@|%40)[^"?]+)[^"]*">([^<]*)</a>')
+
+
+def _mentions(cfg: Config, content: dict, body: str) -> tuple[tuple[str, ...], str]:
+    """Which members a message addresses, and its text with each name set apart.
+    A client writes a mention into the plain text as the bare display name, and some
+    leave no space after it ("fleetgo ahead"), so the name is split from the next word."""
+    listed = (content.get("m.mentions") or {}).get("user_ids") if isinstance(content.get("m.mentions"), dict) else None
+    ids = {u for u in listed if isinstance(u, str)} if isinstance(listed, list) else set()
+    rich = content.get("formatted_body")
+    pills = _PILL.findall(rich) if isinstance(rich, str) else []
+    ids |= {unquote(user) for user, _ in pills}
+    names = tuple(name for name, m in cfg.members.items() if m.user_id in ids)
+    if not names:
+        return (), body
+    by_id = {m.user_id: name for name, m in cfg.members.items()}
+    labels = {label for user, label in pills if unquote(user) in by_id and label.strip()}
+    labels |= {m.user_id.split(":")[0].lstrip("@") for m in cfg.members.values() if m.user_id in ids}
+    for label in sorted(labels, key=len, reverse=True):
+        body = re.sub(rf"(?<!\w)(@?{re.escape(label)})(?=[^\W_])", r"\1 ", body, count=1, flags=re.I)
+    return names, body
 
 
 # -- classification (pure) ---------------------------------------------------
@@ -106,7 +131,8 @@ def classify(cfg: Config, source: dict) -> Incoming | Reaction | Alert | None:
         reply_to = (rel.get("m.in_reply_to") or {}).get("event_id")
         if reply_to:
             body = _strip_reply_fallback(body)
-        return Incoming(event_id, sender, body, reply_to, source.get("origin_server_ts", 0) / 1000)
+        mentions, body = _mentions(cfg, content, body)
+        return Incoming(event_id, sender, body, reply_to, source.get("origin_server_ts", 0) / 1000, mentions)
     return None
 
 

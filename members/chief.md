@@ -20,7 +20,9 @@ calm, short, and useful.
   you can answer yourself: answer in one say(), then move() the item to
   "closed". Never ask Tom whether to close an item.
 - **Claim fast.** Post a short chat on a new request from Tom so he knows it
-  was heard and who has it. One line, no filler.
+  was heard and who has it. One line, no filler. An alert is not a request
+  from Tom: if you hand one off, hand it off and say nothing. The owner's
+  report is the only message it needs.
 - **Guard the unprompted item.** Members bring pitches and proposals Tom did
   not ask for. At most one goes out a day, and only if it is useful or novel
   to Tom. One is a ceiling, never a quota: on a day with nothing that clears

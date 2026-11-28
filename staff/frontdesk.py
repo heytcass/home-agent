@@ -211,7 +211,12 @@ class FrontDesk:
         self.ledger.record_message(alert.event_id, item.id, "alerts", "intake")
         if not new:
             return
-        owner = await self.local.route(alert.text, self._owners()) or "chief"
+        owner = await self.local.route(alert.text, self._owners())
+        if owner in (None, "chief") and alert.host and "fleet" in self.cfg.members:
+            # A box reported it, and the boxes are Fleet's. The chief can't read a host,
+            # so sending it there first only adds a message that says so.
+            owner = "fleet"
+        owner = owner or "chief"
         self.ledger.assign(item.id, owner, "frontdesk")
         self.wake(item.id, f"This alert just arrived:\n\n{alert.text}\n\nInvestigate before saying anything.")
 

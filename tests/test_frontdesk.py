@@ -829,3 +829,14 @@ async def test_naming_a_member_that_never_spoke_opens_an_item_for_it(desk):
     await drain(desk)
     (new,) = desk.ledger.open_items()
     assert new.owner == "fleet" and desk.runner.runs[-1][0] == "fleet"
+
+
+@pytest.mark.parametrize("routed, host, owner", [(None, "silverstone", "fleet"), ("chief", "silverstone", "fleet"),
+                                                 (None, "", "chief"), ("fleet", "silverstone", "fleet")])
+async def test_an_alert_from_a_box_goes_straight_to_fleet(desk, routed, host, owner):
+    desk.local.owner = routed
+    a = alert()
+    a.host = host
+    await desk.on_alert(a)
+    await drain(desk)
+    assert [r[0] for r in desk.runner.runs] == [owner]
